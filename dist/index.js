@@ -17,7 +17,7 @@ import crypto from "crypto";
 // ===============
 const PORT = 8080;
 // For verifying the GitHub webhook signature:
-const GITHUB_TLDR_PR_WEBHOOK_SECRET = process.env.GITHUB_TLDR_PR_WEBHOOK_SECRET || "REPLACE_ME";
+const GITHUB_TLDR_PR_WEBHOOK_SECRET = process.env.GITHUB_TLDR_PR_WEBHOOK_SECRET || "SET_A_SECRET";
 // GitHub App credentials:
 const GITHUB_TLDR_PR_APP_ID = process.env.GITHUB_TLDR_PR_APP_ID || "";
 const GITHUB_TLDR_PR_PRIVATE_KEY = (process.env.GITHUB_TLDR_PR_PRIVATE_KEY || "").replace(/\\n/g, "\n");
@@ -78,26 +78,27 @@ app.post("/webhook", (req, res) => __awaiter(void 0, void 0, void 0, function* (
     const event = req.headers["x-github-event"];
     const payload = req.body;
     if (event === "pull_request") {
-        console.log("webhook for pull_request called");
         const action = payload.action;
-        if (action === "opened" || action === "synchronize") {
+        if (action === "opened" ||
+            action === "synchronize" ||
+            action === "ready_for_review") {
             try {
                 // 3) Extract relevant data
                 const pr = payload.pull_request;
                 const { additions, deletions, number: pull_number } = pr;
                 const totalPatchChanges = additions + deletions;
                 const installationId = payload.installation.id; // The GitHub App's installation ID
-                const { owner, repo } = payload.repository; // "owner" and "name" are inside "repository"
+                const { owner, name } = payload.repository; // "owner" and "name" are inside "repository"
                 // 4) Get an Octokit client authenticated as this installation
                 const octokit = yield getInstallationOctokit(installationId);
                 // 5) List existing comments
                 const { data: comments } = yield octokit.issues.listComments({
                     owner: owner.login,
-                    repo: repo.name,
+                    repo: name,
                     issue_number: pull_number,
                 });
                 // Replace with your actual bot's GitHub login, e.g. "my-app[bot]"
-                const botLogin = "my-app[bot]";
+                const botLogin = "TLDR-PR[bot]";
                 const existingComment = comments.find((c) => { var _a, _b; return ((_a = c.user) === null || _a === void 0 ? void 0 : _a.login) === botLogin && ((_b = c.body) === null || _b === void 0 ? void 0 : _b.includes("Patch changes:")); });
                 // 6) Create or update comment
                 const body = `**Patch changes:** ${totalPatchChanges}`;
@@ -105,7 +106,7 @@ app.post("/webhook", (req, res) => __awaiter(void 0, void 0, void 0, function* (
                     // Update existing comment
                     yield octokit.issues.updateComment({
                         owner: owner.login,
-                        repo: repo.name,
+                        repo: name,
                         comment_id: existingComment.id,
                         body,
                     });
@@ -114,7 +115,7 @@ app.post("/webhook", (req, res) => __awaiter(void 0, void 0, void 0, function* (
                     // Create a new comment
                     yield octokit.issues.createComment({
                         owner: owner.login,
-                        repo: repo.name,
+                        repo: name,
                         issue_number: pull_number,
                         body,
                     });
