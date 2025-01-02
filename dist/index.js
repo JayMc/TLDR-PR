@@ -13,6 +13,7 @@ import { createAppAuth } from "@octokit/auth-app";
 import bodyParser from "body-parser";
 import crypto from "crypto";
 import { Installation } from "./models/installation.js";
+import { connectDB } from "./db.js";
 // ===============
 // CONFIGURATION
 // ===============
@@ -28,6 +29,8 @@ const GITHUB_TLDR_PR_PRIVATE_KEY = (process.env.GITHUB_TLDR_PR_PRIVATE_KEY || ""
 const GITHUB_TLDR_PR_CLIENT_ID = process.env.GITHUB_TLDR_PR_CLIENT_ID || "";
 const GITHUB_TLDR_PR_CLIENT_SECRET = process.env.GITHUB_TLDR_PR_CLIENT_SECRET || "";
 const BOT_LOGIN = "tldr-pr[bot]";
+// Connect to Mongo first
+connectDB();
 // ================
 // HELPER FUNCTIONS
 // ================
@@ -79,7 +82,6 @@ app.post("/webhook", (req, res) => __awaiter(void 0, void 0, void 0, function* (
     // 2) Check the event type & action
     const event = req.headers["x-github-event"];
     const payload = req.body;
-    console.log("BOT_LOGIN", BOT_LOGIN);
     if (event === "pull_request") {
         const action = payload.action;
         if (action === "opened" ||
@@ -142,22 +144,28 @@ app.get("/", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     res.send("Home page tldr-pr");
 }));
 app.get("/post-install-callback", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { installation_id, setup_action } = req.query;
-    if (!installation_id) {
-        return res.status(400).send('Missing "installation_id" in query.');
-    }
-    const filter = { installation_id };
-    const update = {
-        app_id: process.env.GITHUB_TLDR_PR_APP_ID,
-        installation_id,
-    };
-    const options = { upsert: true, new: true };
-    const record = yield Installation.findOneAndUpdate(filter, update, options);
-    res.send(`
+    try {
+        const { installation_id, setup_action } = req.query;
+        if (!installation_id) {
+            return res.status(400).send('Missing "installation_id" in query.');
+        }
+        const filter = { installation_id };
+        const update = {
+            app_id: process.env.GITHUB_TLDR_PR_APP_ID,
+            installation_id,
+        };
+        const options = { upsert: true, new: true };
+        const record = yield Installation.findOneAndUpdate(filter, update, options);
+        res.send(`
     <h1>GitHub App Installed!</h1>
     <p>Installation ID: ${installation_id}</p>
     <p>Setup Action: ${setup_action || "(none)"}</p>
   `);
+    }
+    catch (error) {
+        console.error("Error in /post-install-callback:", error);
+        res.status(500).send("Error handling installation callback");
+    }
 }));
 // Start the server
 app.listen(PORT, () => {
