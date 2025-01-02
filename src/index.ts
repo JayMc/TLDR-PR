@@ -1,5 +1,6 @@
 import express from "express";
 import type { Express } from "express";
+import pLimit from "p-limit";
 import { Octokit } from "@octokit/rest";
 import { createAppAuth } from "@octokit/auth-app";
 import bodyParser from "body-parser";
@@ -127,13 +128,13 @@ app.post("/webhook", async (req: Request, res: Response) => {
           pull_number
         );
 
-        console.log("fileChanges", JSON.stringify(fileChanges, null, 2));
+        // console.log("fileChanges", JSON.stringify(fileChanges, null, 2));
         console.log("body", body);
 
-        console.log(
-          "fileChanges A",
-          fileChanges.map((fileChange) => fileChange.filename)
-        );
+        // console.log(
+        //   "fileChanges A",
+        //   fileChanges.map((fileChange) => fileChange.filename)
+        // );
 
         const fileChangesOmmitted = fileChanges.filter((fileChange) => {
           return !isIgnoredFile(fileChange.filename);
@@ -145,16 +146,24 @@ app.post("/webhook", async (req: Request, res: Response) => {
         );
 
         // call AI model
-        for (const fileChange of fileChangesOmmitted) {
-          const summary = await summarisePatchToEnglish(fileChange.patch);
-        }
+        // for (const fileChange of fileChangesOmmitted) {
+        //   const summary = await summarisePatchToEnglish(fileChange.patch);
+        // }
+
+        const fileChangesLimited = fileChangesOmmitted.slice(0, 5);
+
+        // Limit concurrent network requests to 5
+        const networkRequestslimited = pLimit(5);
 
         const fileChangesWithSummary = await Promise.all(
-          fileChangesOmmitted.map(async (fileChange) => {
-            const patch = fileChange.patch;
-            const summary = await summarisePatchToEnglish(patch);
-            return { ...fileChange, summary };
-          })
+          fileChangesLimited.map((fileChange) =>
+            networkRequestslimited(async () => {
+              const patch = fileChange.patch;
+              const fileName = fileChange.filename;
+              const summary = await summarisePatchToEnglish(fileName, patch);
+              return { ...fileChange, summary };
+            })
+          )
         );
 
         console.log("fileChangesWithSummary", fileChangesWithSummary);
@@ -169,11 +178,15 @@ app.post("/webhook", async (req: Request, res: Response) => {
           return (
             c.user?.login === BOT_LOGIN &&
             c.user.type === "Bot" &&
-            c.body?.includes("Patch changes:")
+            c.body?.includes("Summary of changes:")
           );
         });
 
-        const commentBody = `**Patch changes:** ${totalPatchChanges}`;
+        const commentBody =
+          "**Summary of changes:** \n" +
+          fileChangesWithSummary.reduce((acc, fileChange) => {
+            return `${acc}\n${fileChange.summary}`;
+          }, "");
 
         if (existingComment) {
           // Update existing comment

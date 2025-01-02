@@ -8,6 +8,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import express from "express";
+import pLimit from "p-limit";
 import { Octokit } from "@octokit/rest";
 import { createAppAuth } from "@octokit/auth-app";
 import bodyParser from "body-parser";
@@ -96,22 +97,29 @@ app.post("/webhook", (req, res) => __awaiter(void 0, void 0, void 0, function* (
                 const { owner, name } = payload.repository; // "owner" and "name" are inside "repository"
                 const octokit = yield getInstallationOctokit(installationId);
                 const fileChanges = yield fetchPRPatchChanges(octokit, owner.login, name, pull_number);
-                console.log("fileChanges", JSON.stringify(fileChanges, null, 2));
+                // console.log("fileChanges", JSON.stringify(fileChanges, null, 2));
                 console.log("body", body);
-                console.log("fileChanges A", fileChanges.map((fileChange) => fileChange.filename));
+                // console.log(
+                //   "fileChanges A",
+                //   fileChanges.map((fileChange) => fileChange.filename)
+                // );
                 const fileChangesOmmitted = fileChanges.filter((fileChange) => {
                     return !isIgnoredFile(fileChange.filename);
                 });
                 console.log("fileChangesOmmitted B", fileChangesOmmitted.map((fileChange) => fileChange.filename));
                 // call AI model
-                for (const fileChange of fileChangesOmmitted) {
-                    const summary = yield summarisePatchToEnglish(fileChange.patch);
-                }
-                const fileChangesWithSummary = yield Promise.all(fileChangesOmmitted.map((fileChange) => __awaiter(void 0, void 0, void 0, function* () {
+                // for (const fileChange of fileChangesOmmitted) {
+                //   const summary = await summarisePatchToEnglish(fileChange.patch);
+                // }
+                const fileChangesLimited = fileChangesOmmitted.slice(0, 5);
+                // Limit concurrent network requests to 5
+                const networkRequestslimited = pLimit(5);
+                const fileChangesWithSummary = yield Promise.all(fileChangesLimited.map((fileChange) => networkRequestslimited(() => __awaiter(void 0, void 0, void 0, function* () {
                     const patch = fileChange.patch;
-                    const summary = yield summarisePatchToEnglish(patch);
+                    const fileName = fileChange.filename;
+                    const summary = yield summarisePatchToEnglish(fileName, patch);
                     return Object.assign(Object.assign({}, fileChange), { summary });
-                })));
+                }))));
                 console.log("fileChangesWithSummary", fileChangesWithSummary);
                 const { data: comments } = yield octokit.issues.listComments({
                     owner: owner.login,
@@ -122,9 +130,12 @@ app.post("/webhook", (req, res) => __awaiter(void 0, void 0, void 0, function* (
                     var _a, _b;
                     return (((_a = c.user) === null || _a === void 0 ? void 0 : _a.login) === BOT_LOGIN &&
                         c.user.type === "Bot" &&
-                        ((_b = c.body) === null || _b === void 0 ? void 0 : _b.includes("Patch changes:")));
+                        ((_b = c.body) === null || _b === void 0 ? void 0 : _b.includes("Summary of changes:")));
                 });
-                const commentBody = `**Patch changes:** ${totalPatchChanges}`;
+                const commentBody = "**Summary of changes:** \n" +
+                    fileChangesWithSummary.reduce((acc, fileChange) => {
+                        return `${acc}\n${fileChange.summary}`;
+                    }, "");
                 if (existingComment) {
                     // Update existing comment
                     yield octokit.issues.updateComment({

@@ -21,7 +21,8 @@
     "expres": "^0.0.5",
     "express": "^4.21.2",
     "mongoose": "^8.9.3",
-    "openai": "^4.77.0"
+    "openai": "^4.77.0",
+    "p-limit": "^6.2.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
