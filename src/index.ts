@@ -29,7 +29,7 @@ const GITHUB_TLDR_PR_CLIENT_ID = process.env.GITHUB_TLDR_PR_CLIENT_ID || "";
 const GITHUB_TLDR_PR_CLIENT_SECRET =
   process.env.GITHUB_TLDR_PR_CLIENT_SECRET || "";
 
-const BOT_LOGIN = "TLDR-PR[bot]";
+const BOT_LOGIN = "tldr-pr[bot]";
 
 // ================
 // HELPER FUNCTIONS
@@ -124,12 +124,17 @@ app.post("/webhook", async (req: Request, res: Response) => {
 
         // Replace with your actual bot's GitHub login, e.g. "my-app[bot]"
 
-        const existingComment = comments.find(
-          (c) =>
+        const existingComment = comments.find((c) => {
+          console.log("c.user?.login", c.user?.login);
+          console.log("c.user?.type", c.user?.type);
+          console.log("c.body", c.body);
+
+          return (
             c.user?.login === BOT_LOGIN &&
             // c.user.type === "Bot" &&
             c.body?.includes("Patch changes:")
-        );
+          );
+        });
         console.log("existingComment", existingComment);
 
         // 6) Create or update comment
