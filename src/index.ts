@@ -128,13 +128,7 @@ app.post("/webhook", async (req: Request, res: Response) => {
           pull_number
         );
 
-        // console.log("fileChanges", JSON.stringify(fileChanges, null, 2));
         console.log("body", body);
-
-        // console.log(
-        //   "fileChanges A",
-        //   fileChanges.map((fileChange) => fileChange.filename)
-        // );
 
         const fileChangesOmmitted = fileChanges.filter((fileChange) => {
           return !isIgnoredFile(fileChange.filename);
@@ -145,15 +139,10 @@ app.post("/webhook", async (req: Request, res: Response) => {
           fileChangesOmmitted.map((fileChange) => fileChange.filename)
         );
 
-        // call AI model
-        // for (const fileChange of fileChangesOmmitted) {
-        //   const summary = await summarisePatchToEnglish(fileChange.patch);
-        // }
-
-        const fileChangesLimited = fileChangesOmmitted.slice(0, 5);
+        const fileChangesLimited = fileChangesOmmitted.slice(0, 10);
 
         // Limit concurrent network requests to 5
-        const networkRequestslimited = pLimit(5);
+        const networkRequestslimited = pLimit(2);
 
         const fileChangesWithSummary = await Promise.all(
           fileChangesLimited.map((fileChange) =>
@@ -219,7 +208,11 @@ app.post("/webhook", async (req: Request, res: Response) => {
 });
 
 app.get("/", async (req, res) => {
-  res.send("Home page tldr-pr");
+  res.send("Home page tldr-pr is cool");
+});
+
+app.get("/stuff", async (req, res) => {
+  res.send("stuff");
 });
 
 app.get("/post-install-callback", async (req, res) => {
