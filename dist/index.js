@@ -14,6 +14,7 @@ import bodyParser from "body-parser";
 import crypto from "crypto";
 import { Installation } from "./models/installation.js";
 import { connectDB } from "./db.js";
+import { fetchPRPatchChanges, summarisePatchToEnglish, } from "./summarise-pr.js";
 // ===============
 // CONFIGURATION
 // ===============
@@ -90,12 +91,18 @@ app.post("/webhook", (req, res) => __awaiter(void 0, void 0, void 0, function* (
             try {
                 // 3) Extract relevant data
                 const pr = payload.pull_request;
-                const { additions, deletions, number: pull_number } = pr;
+                const { additions, deletions, number: pull_number, body } = pr;
                 const totalPatchChanges = additions + deletions;
                 const installationId = payload.installation.id; // The GitHub App's installation ID
                 const { owner, name } = payload.repository; // "owner" and "name" are inside "repository"
                 // 4) Get an Octokit client authenticated as this installation
                 const octokit = yield getInstallationOctokit(installationId);
+                const fileChanges = yield fetchPRPatchChanges(octokit, owner.login, name, pull_number);
+                console.log("fileChanges", JSON.stringify(fileChanges, null, 2));
+                console.log("body", body);
+                // call AI model
+                const AIsummary = yield summarisePatchToEnglish(fileChanges, body);
+                console.log("AIsummary", AIsummary);
                 // 5) List existing comments
                 const { data: comments } = yield octokit.issues.listComments({
                     owner: owner.login,
@@ -110,14 +117,14 @@ app.post("/webhook", (req, res) => __awaiter(void 0, void 0, void 0, function* (
                         ((_b = c.body) === null || _b === void 0 ? void 0 : _b.includes("Patch changes:")));
                 });
                 // 6) Create or update comment
-                const body = `**Patch changes:** ${totalPatchChanges}`;
+                const commentBody = `**Patch changes:** ${totalPatchChanges}`;
                 if (existingComment) {
                     // Update existing comment
                     yield octokit.issues.updateComment({
                         owner: owner.login,
                         repo: name,
                         comment_id: existingComment.id,
-                        body,
+                        body: commentBody,
                     });
                 }
                 else {
@@ -126,7 +133,7 @@ app.post("/webhook", (req, res) => __awaiter(void 0, void 0, void 0, function* (
                         owner: owner.login,
                         repo: name,
                         issue_number: pull_number,
-                        body,
+                        body: commentBody,
                     });
                 }
                 return res.status(200).send("PR comment posted/updated successfully");
