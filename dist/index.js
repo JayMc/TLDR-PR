@@ -100,19 +100,13 @@ app.post("/webhook", (req, res) => __awaiter(void 0, void 0, void 0, function* (
                     repo: name,
                     issue_number: pull_number,
                 });
-                console.log("comments", comments);
                 // Replace with your actual bot's GitHub login, e.g. "my-app[bot]"
                 const existingComment = comments.find((c) => {
-                    var _a, _b, _c, _d;
-                    console.log("c.user?.login", (_a = c.user) === null || _a === void 0 ? void 0 : _a.login);
-                    console.log("c.user?.type", (_b = c.user) === null || _b === void 0 ? void 0 : _b.type);
-                    console.log("c.body", c.body);
-                    return (((_c = c.user) === null || _c === void 0 ? void 0 : _c.login) === BOT_LOGIN &&
-                        (
-                        // c.user.type === "Bot" &&
-                        (_d = c.body) === null || _d === void 0 ? void 0 : _d.includes("Patch changes:")));
+                    var _a, _b;
+                    return (((_a = c.user) === null || _a === void 0 ? void 0 : _a.login) === BOT_LOGIN &&
+                        c.user.type === "Bot" &&
+                        ((_b = c.body) === null || _b === void 0 ? void 0 : _b.includes("Patch changes:")));
                 });
-                console.log("existingComment", existingComment);
                 // 6) Create or update comment
                 const body = `**Patch changes:** ${totalPatchChanges}`;
                 if (existingComment) {
