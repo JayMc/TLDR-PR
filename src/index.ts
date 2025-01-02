@@ -5,9 +5,6 @@ import { createAppAuth } from "@octokit/auth-app";
 import bodyParser from "body-parser";
 import crypto from "crypto";
 
-// ===============
-// CONFIGURATION
-// ===============
 const PORT = 8080;
 
 // For verifying the GitHub webhook signature:
