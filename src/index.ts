@@ -14,8 +14,6 @@ const PORT = 8080;
 const GITHUB_TLDR_PR_WEBHOOK_SECRET =
   process.env.GITHUB_TLDR_PR_WEBHOOK_SECRET || "REPLACE_ME_PLEASE";
 
-// blah
-
 // GitHub App credentials:
 const GITHUB_TLDR_PR_APP_ID = process.env.GITHUB_TLDR_PR_APP_ID || "";
 const GITHUB_TLDR_PR_PRIVATE_KEY = (
