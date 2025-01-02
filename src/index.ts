@@ -12,7 +12,7 @@ const PORT = 8080;
 
 // For verifying the GitHub webhook signature:
 const GITHUB_TLDR_PR_WEBHOOK_SECRET =
-  process.env.GITHUB_TLDR_PR_WEBHOOK_SECRET || "REPLACE_ME_PLEASE";
+  process.env.GITHUB_TLDR_PR_WEBHOOK_SECRET || "REPLACE_ME_PLEASE!";
 
 // GitHub App credentials:
 const GITHUB_TLDR_PR_APP_ID = process.env.GITHUB_TLDR_PR_APP_ID || "";
