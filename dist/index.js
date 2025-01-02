@@ -26,6 +26,7 @@ const GITHUB_TLDR_PR_PRIVATE_KEY = (process.env.GITHUB_TLDR_PR_PRIVATE_KEY || ""
 // Optional client ID/secret if you need them:
 const GITHUB_TLDR_PR_CLIENT_ID = process.env.GITHUB_TLDR_PR_CLIENT_ID || "";
 const GITHUB_TLDR_PR_CLIENT_SECRET = process.env.GITHUB_TLDR_PR_CLIENT_SECRET || "";
+const BOT_LOGIN = "TLDR-PR[bot]";
 // ================
 // HELPER FUNCTIONS
 // ================
@@ -77,6 +78,7 @@ app.post("/webhook", (req, res) => __awaiter(void 0, void 0, void 0, function* (
     // 2) Check the event type & action
     const event = req.headers["x-github-event"];
     const payload = req.body;
+    console.log("BOT_LOGIN", BOT_LOGIN);
     if (event === "pull_request") {
         const action = payload.action;
         if (action === "opened" ||
@@ -97,9 +99,15 @@ app.post("/webhook", (req, res) => __awaiter(void 0, void 0, void 0, function* (
                     repo: name,
                     issue_number: pull_number,
                 });
+                console.log("comments", comments);
                 // Replace with your actual bot's GitHub login, e.g. "my-app[bot]"
-                const botLogin = "TLDR-PR[bot]";
-                const existingComment = comments.find((c) => { var _a, _b; return ((_a = c.user) === null || _a === void 0 ? void 0 : _a.login) === botLogin && ((_b = c.body) === null || _b === void 0 ? void 0 : _b.includes("Patch changes:")); });
+                const existingComment = comments.find((c) => {
+                    var _a, _b;
+                    return ((_a = c.user) === null || _a === void 0 ? void 0 : _a.login) === BOT_LOGIN &&
+                        c.user.type === "Bot" &&
+                        ((_b = c.body) === null || _b === void 0 ? void 0 : _b.includes("Patch changes:"));
+                });
+                console.log("existingComment", existingComment);
                 // 6) Create or update comment
                 const body = `**Patch changes:** ${totalPatchChanges}`;
                 if (existingComment) {

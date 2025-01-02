@@ -4,6 +4,7 @@ import { Octokit } from "@octokit/rest";
 import { createAppAuth } from "@octokit/auth-app";
 import bodyParser from "body-parser";
 import crypto from "crypto";
+import { Installation } from "./models/installation";
 
 // ===============
 // CONFIGURATION
@@ -27,6 +28,8 @@ const GITHUB_TLDR_PR_CLIENT_ID = process.env.GITHUB_TLDR_PR_CLIENT_ID || "";
 
 const GITHUB_TLDR_PR_CLIENT_SECRET =
   process.env.GITHUB_TLDR_PR_CLIENT_SECRET || "";
+
+const BOT_LOGIN = "TLDR-PR[bot]";
 
 // ================
 // HELPER FUNCTIONS
@@ -91,6 +94,7 @@ app.post("/webhook", async (req: Request, res: Response) => {
   const event = req.headers["x-github-event"] as string;
   const payload = req.body;
 
+  console.log("BOT_LOGIN", BOT_LOGIN);
   if (event === "pull_request") {
     const action = payload.action;
     if (
@@ -116,14 +120,17 @@ app.post("/webhook", async (req: Request, res: Response) => {
           repo: name,
           issue_number: pull_number,
         });
+        console.log("comments", comments);
 
         // Replace with your actual bot's GitHub login, e.g. "my-app[bot]"
-        const botLogin = "TLDR-PR[bot]";
 
         const existingComment = comments.find(
           (c) =>
-            c.user?.login === botLogin && c.body?.includes("Patch changes:")
+            c.user?.login === BOT_LOGIN &&
+            c.user.type === "Bot" &&
+            c.body?.includes("Patch changes:")
         );
+        console.log("existingComment", existingComment);
 
         // 6) Create or update comment
         const body = `**Patch changes:** ${totalPatchChanges}`;
@@ -167,6 +174,15 @@ app.get("/post-install-callback", async (req, res) => {
   if (!installation_id) {
     return res.status(400).send('Missing "installation_id" in query.');
   }
+
+  const filter = { installation_id };
+  const update = {
+    app_id: process.env.GITHUB_TLDR_PR_APP_ID,
+    installation_id,
+  };
+  const options = { upsert: true, new: true };
+
+  const record = await Installation.findOneAndUpdate(filter, update, options);
 
   res.send(`
     <h1>GitHub App Installed!</h1>
