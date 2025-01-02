@@ -127,7 +127,7 @@ app.post("/webhook", async (req: Request, res: Response) => {
         const existingComment = comments.find(
           (c) =>
             c.user?.login === BOT_LOGIN &&
-            c.user.type === "Bot" &&
+            // c.user.type === "Bot" &&
             c.body?.includes("Patch changes:")
         );
         console.log("existingComment", existingComment);
