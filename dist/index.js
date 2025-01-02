@@ -100,15 +100,18 @@ app.post("/webhook", (req, res) => __awaiter(void 0, void 0, void 0, function* (
                 console.log("body", body);
                 console.log("fileChanges A", fileChanges.map((fileChange) => fileChange.filename));
                 const fileChangesOmmitted = fileChanges.filter((fileChange) => {
-                    return isIgnoredFile(fileChange.filename);
+                    return !isIgnoredFile(fileChange.filename);
                 });
                 console.log("fileChangesOmmitted B", fileChangesOmmitted.map((fileChange) => fileChange.filename));
                 // call AI model
-                const fileChangesWithSummary = fileChangesOmmitted.map((fileChange) => __awaiter(void 0, void 0, void 0, function* () {
+                for (const fileChange of fileChangesOmmitted) {
+                    const summary = yield summarisePatchToEnglish(fileChange.patch);
+                }
+                const fileChangesWithSummary = yield Promise.all(fileChangesOmmitted.map((fileChange) => __awaiter(void 0, void 0, void 0, function* () {
                     const patch = fileChange.patch;
                     const summary = yield summarisePatchToEnglish(patch);
                     return Object.assign(Object.assign({}, fileChange), { summary });
-                }));
+                })));
                 console.log("fileChangesWithSummary", fileChangesWithSummary);
                 const { data: comments } = yield octokit.issues.listComments({
                     owner: owner.login,

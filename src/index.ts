@@ -136,7 +136,7 @@ app.post("/webhook", async (req: Request, res: Response) => {
         );
 
         const fileChangesOmmitted = fileChanges.filter((fileChange) => {
-          return isIgnoredFile(fileChange.filename);
+          return !isIgnoredFile(fileChange.filename);
         });
 
         console.log(
@@ -145,12 +145,16 @@ app.post("/webhook", async (req: Request, res: Response) => {
         );
 
         // call AI model
-        const fileChangesWithSummary = fileChangesOmmitted.map(
-          async (fileChange) => {
+        for (const fileChange of fileChangesOmmitted) {
+          const summary = await summarisePatchToEnglish(fileChange.patch);
+        }
+
+        const fileChangesWithSummary = await Promise.all(
+          fileChangesOmmitted.map(async (fileChange) => {
             const patch = fileChange.patch;
             const summary = await summarisePatchToEnglish(patch);
             return { ...fileChange, summary };
-          }
+          })
         );
 
         console.log("fileChangesWithSummary", fileChangesWithSummary);
