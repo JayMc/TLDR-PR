@@ -26,18 +26,12 @@ export function fetchPRPatchChanges(octokit, owner, repo, pull_number) {
         });
         const fileChanges = files.map((file) => ({
             filename: file.filename,
-            changes: {
-                additions: file.additions,
-                deletions: file.deletions,
-                changes: file.changes,
-                status: file.status,
-                patch: file.patch,
-            },
+            patch: file.patch,
         }));
         return fileChanges;
     });
 }
-export function summarisePatchToEnglish(fileChanges, body) {
+export function summarisePatchToEnglish(patch) {
     return __awaiter(this, void 0, void 0, function* () {
         var _a, _b, _c;
         try {
@@ -49,7 +43,9 @@ export function summarisePatchToEnglish(fileChanges, body) {
                 messages: [
                     {
                         role: "user",
-                        content: `summarize this github patch into a short and concise english sentence explaining in simple terms what happened. \n ${JSON.stringify(fileChanges)}`,
+                        content: `
+          Summarise the patch in short and concise bullet points. \n
+          ${patch}`,
                     },
                 ],
                 model: "gpt-4o-mini",
@@ -63,4 +59,8 @@ export function summarisePatchToEnglish(fileChanges, body) {
             return res.status(500).send("Internal Server Error");
         }
     });
+}
+export function isIgnoredFile(filePath) {
+    const filesToIgnore = ["package-lock.json", "node_modules", "dist"];
+    return filesToIgnore.some((ignoredPath) => filePath === ignoredPath || filePath.startsWith(ignoredPath + "/"));
 }

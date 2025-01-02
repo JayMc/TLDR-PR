@@ -24,22 +24,13 @@ export async function fetchPRPatchChanges(
 
   const fileChanges = files.map((file) => ({
     filename: file.filename,
-    changes: {
-      additions: file.additions,
-      deletions: file.deletions,
-      changes: file.changes,
-      status: file.status,
-      patch: file.patch,
-    },
+    patch: file.patch,
   }));
 
   return fileChanges;
 }
 
-export async function summarisePatchToEnglish(
-  fileChanges,
-  body
-): Promise<string> {
+export async function summarisePatchToEnglish(patch): Promise<string> {
   try {
     const OPEN_AI_TLDR_PR_API_KEY = process.env.OPEN_AI_TLDR_PR_API_KEY || "";
     const client = new OpenAI({
@@ -50,9 +41,9 @@ export async function summarisePatchToEnglish(
       messages: [
         {
           role: "user",
-          content: `summarize this github patch into a short and concise english sentence explaining in simple terms what happened. \n ${JSON.stringify(
-            fileChanges
-          )}`,
+          content: `
+          Summarise the patch in short and concise bullet points. \n
+          ${patch}`,
         },
       ],
       model: "gpt-4o-mini",
@@ -69,4 +60,12 @@ export async function summarisePatchToEnglish(
     console.error("Error calling open AI", error);
     return res.status(500).send("Internal Server Error");
   }
+}
+
+export function isIgnoredFile(filePath: string): boolean {
+  const filesToIgnore = ["package-lock.json", "node_modules", "dist"];
+  return filesToIgnore.some(
+    (ignoredPath) =>
+      filePath === ignoredPath || filePath.startsWith(ignoredPath + "/")
+  );
 }

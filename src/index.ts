@@ -9,6 +9,7 @@ import { connectDB } from "./db.js";
 import {
   fetchPRPatchChanges,
   summarisePatchToEnglish,
+  isIgnoredFile,
 } from "./summarise-pr.js";
 
 // ===============
@@ -110,7 +111,6 @@ app.post("/webhook", async (req: Request, res: Response) => {
       action === "ready_for_review"
     ) {
       try {
-        // 3) Extract relevant data
         const pr = payload.pull_request;
         const { additions, deletions, number: pull_number, body } = pr;
         const totalPatchChanges = additions + deletions;
@@ -118,7 +118,6 @@ app.post("/webhook", async (req: Request, res: Response) => {
         const installationId = payload.installation.id; // The GitHub App's installation ID
         const { owner, name } = payload.repository; // "owner" and "name" are inside "repository"
 
-        // 4) Get an Octokit client authenticated as this installation
         const octokit = await getInstallationOctokit(installationId);
 
         const fileChanges = await fetchPRPatchChanges(
@@ -131,18 +130,36 @@ app.post("/webhook", async (req: Request, res: Response) => {
         console.log("fileChanges", JSON.stringify(fileChanges, null, 2));
         console.log("body", body);
 
-        // call AI model
-        const AIsummary = await summarisePatchToEnglish(fileChanges, body);
-        console.log("AIsummary", AIsummary);
+        console.log(
+          "fileChanges A",
+          fileChanges.map((fileChange) => fileChange.filename)
+        );
 
-        // 5) List existing comments
+        const fileChangesOmmitted = fileChanges.filter((fileChange) => {
+          return isIgnoredFile(fileChange.filename);
+        });
+
+        console.log(
+          "fileChangesOmmitted B",
+          fileChangesOmmitted.map((fileChange) => fileChange.filename)
+        );
+
+        // call AI model
+        const fileChangesWithSummary = fileChangesOmmitted.map(
+          async (fileChange) => {
+            const patch = fileChange.patch;
+            const summary = await summarisePatchToEnglish(patch);
+            return { ...fileChange, summary };
+          }
+        );
+
+        console.log("fileChangesWithSummary", fileChangesWithSummary);
+
         const { data: comments } = await octokit.issues.listComments({
           owner: owner.login,
           repo: name,
           issue_number: pull_number,
         });
-
-        // Replace with your actual bot's GitHub login, e.g. "my-app[bot]"
 
         const existingComment = comments.find((c) => {
           return (
@@ -152,7 +169,6 @@ app.post("/webhook", async (req: Request, res: Response) => {
           );
         });
 
-        // 6) Create or update comment
         const commentBody = `**Patch changes:** ${totalPatchChanges}`;
 
         if (existingComment) {
