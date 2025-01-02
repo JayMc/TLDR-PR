@@ -4,7 +4,7 @@ import { Octokit } from "@octokit/rest";
 import { createAppAuth } from "@octokit/auth-app";
 import bodyParser from "body-parser";
 import crypto from "crypto";
-import { Installation } from "./models/installation";
+import { Installation } from "./models/installation.js";
 
 // ===============
 // CONFIGURATION

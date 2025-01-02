@@ -12,6 +12,7 @@ import { Octokit } from "@octokit/rest";
 import { createAppAuth } from "@octokit/auth-app";
 import bodyParser from "body-parser";
 import crypto from "crypto";
+import { Installation } from "./models/installation.js";
 // ===============
 // CONFIGURATION
 // ===============
@@ -104,8 +105,9 @@ app.post("/webhook", (req, res) => __awaiter(void 0, void 0, void 0, function* (
                 const existingComment = comments.find((c) => {
                     var _a, _b;
                     return ((_a = c.user) === null || _a === void 0 ? void 0 : _a.login) === BOT_LOGIN &&
-                        c.user.type === "Bot" &&
-                        ((_b = c.body) === null || _b === void 0 ? void 0 : _b.includes("Patch changes:"));
+                        (
+                        // c.user.type === "Bot" &&
+                        (_b = c.body) === null || _b === void 0 ? void 0 : _b.includes("Patch changes:"));
                 });
                 console.log("existingComment", existingComment);
                 // 6) Create or update comment
@@ -147,6 +149,13 @@ app.get("/post-install-callback", (req, res) => __awaiter(void 0, void 0, void 0
     if (!installation_id) {
         return res.status(400).send('Missing "installation_id" in query.');
     }
+    const filter = { installation_id };
+    const update = {
+        app_id: process.env.GITHUB_TLDR_PR_APP_ID,
+        installation_id,
+    };
+    const options = { upsert: true, new: true };
+    const record = yield Installation.findOneAndUpdate(filter, update, options);
     res.send(`
     <h1>GitHub App Installed!</h1>
     <p>Installation ID: ${installation_id}</p>
