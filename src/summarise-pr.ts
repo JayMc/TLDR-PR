@@ -1,5 +1,7 @@
 import OpenAI from "openai";
 import { Octokit } from "@octokit/rest";
+import { estimator } from "./estimator.js";
+import { Usage } from "./models/usage.js";
 
 /**
  * Fetches and sums all additions/deletions for the files in a given PR.
@@ -23,7 +25,7 @@ export async function fetchPRPatchChanges(
   });
 
   const fileChanges = files.map((file) => {
-    const limitedPatch = file.patch?.split("\n").slice(0, 5).join("\n");
+    const limitedPatch = file.patch?.split("\n").slice(0, 200).join("\n");
     return {
       filename: file.filename,
       patch: limitedPatch,
@@ -35,7 +37,8 @@ export async function fetchPRPatchChanges(
 
 export async function summarisePatchToEnglish(
   fileName: string,
-  patch: string
+  patch: string,
+  installationId: string
 ): Promise<string> {
   try {
     const OPEN_AI_TLDR_PR_API_KEY = process.env.OPEN_AI_TLDR_PR_API_KEY || "";
@@ -94,6 +97,34 @@ export async function summarisePatchToEnglish(
 
     const summ =
       patchSummarisation?.choices[0]?.message?.content ?? "no summary";
+
+    const usage = patchSummarisation.usage ?? {};
+
+    const promptTokensEstimated = estimator(prompt);
+    const completionTokensEstimated = estimator(summ);
+
+    const report = {
+      promptTokensEstimated: promptTokensEstimated.length,
+      completionTokensEstimated: completionTokensEstimated.length,
+      totalTokensEstimated:
+        promptTokensEstimated.length + completionTokensEstimated.length,
+      promptTokensActual: usage.prompt_tokens ?? 0,
+      completionTokensActual: usage.completion_tokens ?? 0,
+      totalTokensActual: usage.total_tokens ?? 0,
+    };
+
+    const newDoc = new Usage({
+      installation_id: installationId,
+      "usage.apiCalls": 1,
+      "usage.promptTokensActual": report.promptTokensActual,
+      "usage.completionTokensActual": report.completionTokensActual,
+      "usage.totalTokensActual": report.totalTokensActual,
+      "usage.promptTokensEstimated": report.promptTokensEstimated,
+      "usage.completionTokensEstimated": report.completionTokensEstimated,
+      "usage.totalTokensEstimated": report.totalTokensEstimated,
+    });
+    await newDoc.save();
+
     return summ;
   } catch (error) {
     console.error("Error calling open AI", error);

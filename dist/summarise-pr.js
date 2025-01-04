@@ -8,6 +8,8 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import OpenAI from "openai";
+import { estimator } from "./estimator.js";
+import { Usage } from "./models/usage.js";
 /**
  * Fetches and sums all additions/deletions for the files in a given PR.
  *
@@ -26,7 +28,7 @@ export function fetchPRPatchChanges(octokit, owner, repo, pull_number) {
         });
         const fileChanges = files.map((file) => {
             var _a;
-            const limitedPatch = (_a = file.patch) === null || _a === void 0 ? void 0 : _a.split("\n").slice(0, 5).join("\n");
+            const limitedPatch = (_a = file.patch) === null || _a === void 0 ? void 0 : _a.split("\n").slice(0, 200).join("\n");
             return {
                 filename: file.filename,
                 patch: limitedPatch,
@@ -35,9 +37,9 @@ export function fetchPRPatchChanges(octokit, owner, repo, pull_number) {
         return fileChanges;
     });
 }
-export function summarisePatchToEnglish(fileName, patch) {
+export function summarisePatchToEnglish(fileName, patch, installationId) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c;
+        var _a, _b, _c, _d, _e, _f, _g;
         try {
             const OPEN_AI_TLDR_PR_API_KEY = process.env.OPEN_AI_TLDR_PR_API_KEY || "";
             const client = new OpenAI({
@@ -87,6 +89,28 @@ export function summarisePatchToEnglish(fileName, patch) {
             });
             console.log("patchSummarisation", JSON.stringify(patchSummarisation, null, 2));
             const summ = (_c = (_b = (_a = patchSummarisation === null || patchSummarisation === void 0 ? void 0 : patchSummarisation.choices[0]) === null || _a === void 0 ? void 0 : _a.message) === null || _b === void 0 ? void 0 : _b.content) !== null && _c !== void 0 ? _c : "no summary";
+            const usage = (_d = patchSummarisation.usage) !== null && _d !== void 0 ? _d : {};
+            const promptTokensEstimated = estimator(prompt);
+            const completionTokensEstimated = estimator(summ);
+            const report = {
+                promptTokensEstimated: promptTokensEstimated.length,
+                completionTokensEstimated: completionTokensEstimated.length,
+                totalTokensEstimated: promptTokensEstimated.length + completionTokensEstimated.length,
+                promptTokensActual: (_e = usage.prompt_tokens) !== null && _e !== void 0 ? _e : 0,
+                completionTokensActual: (_f = usage.completion_tokens) !== null && _f !== void 0 ? _f : 0,
+                totalTokensActual: (_g = usage.total_tokens) !== null && _g !== void 0 ? _g : 0,
+            };
+            const newDoc = new Usage({
+                installation_id: installationId,
+                "usage.apiCalls": 1,
+                "usage.promptTokensActual": report.promptTokensActual,
+                "usage.completionTokensActual": report.completionTokensActual,
+                "usage.totalTokensActual": report.totalTokensActual,
+                "usage.promptTokensEstimated": report.promptTokensEstimated,
+                "usage.completionTokensEstimated": report.completionTokensEstimated,
+                "usage.totalTokensEstimated": report.totalTokensEstimated,
+            });
+            yield newDoc.save();
             return summ;
         }
         catch (error) {

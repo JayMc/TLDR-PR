@@ -14,8 +14,10 @@ import { createAppAuth } from "@octokit/auth-app";
 import bodyParser from "body-parser";
 import crypto from "crypto";
 import { Installation } from "./models/installation.js";
+import { Usage } from "./models/usage.js";
 import { connectDB } from "./db.js";
 import { fetchPRPatchChanges, summarisePatchToEnglish, isIgnoredFile, } from "./summarise-pr.js";
+import { estimator } from "./estimator.js";
 // ===============
 // CONFIGURATION
 // ===============
@@ -117,7 +119,7 @@ app.post("/webhook", (req, res) => __awaiter(void 0, void 0, void 0, function* (
                 const fileChangesWithSummary = yield Promise.all(fileChangesLimited.map((fileChange) => networkRequestslimited(() => __awaiter(void 0, void 0, void 0, function* () {
                     const patch = fileChange.patch;
                     const fileName = fileChange.filename;
-                    const summary = yield summarisePatchToEnglish(fileName, patch);
+                    const summary = yield summarisePatchToEnglish(fileName, patch, installationId);
                     return Object.assign(Object.assign({}, fileChange), { summary });
                 }))));
                 console.log("fileChangesWithSummary", fileChangesWithSummary);
@@ -130,11 +132,11 @@ app.post("/webhook", (req, res) => __awaiter(void 0, void 0, void 0, function* (
                     var _a, _b;
                     return (((_a = c.user) === null || _a === void 0 ? void 0 : _a.login) === BOT_LOGIN &&
                         c.user.type === "Bot" &&
-                        ((_b = c.body) === null || _b === void 0 ? void 0 : _b.includes("Summary of changes:")));
+                        ((_b = c.body) === null || _b === void 0 ? void 0 : _b.includes("**Summary of changes:**")));
                 });
                 const commentBody = "**Summary of changes:** \n" +
                     fileChangesWithSummary.reduce((acc, fileChange) => {
-                        return `${acc}\n${fileChange.summary}`;
+                        return `${acc}\n\r${fileChange.summary}`;
                     }, "");
                 if (existingComment) {
                     // Update existing comment
@@ -167,6 +169,48 @@ app.post("/webhook", (req, res) => __awaiter(void 0, void 0, void 0, function* (
 }));
 app.get("/", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     res.send("Home page tldr-pr");
+}));
+app.get("/estimate", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { text } = req.query;
+    const tokens = estimator(text !== null && text !== void 0 ? text : "hello world");
+    console.log("tokens", tokens);
+    console.log("number of tokens", tokens.length);
+    res.send(`
+    <p>text: ${text} </p>
+    <p>number of tokens: ${tokens.length} </p>
+    `);
+}));
+app.get("/usage", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { installation_id } = req.query;
+    try {
+        const query = [
+            {
+                $match: {
+                    installation_id,
+                },
+            },
+            {
+                $group: {
+                    _id: "$installation_id",
+                    apiCalls: { $sum: "$usage.apiCalls" },
+                    promptTokens: { $sum: "$usage.promptTokensActual" },
+                    completionTokens: { $sum: "$usage.completionTokensActual" },
+                },
+            },
+        ];
+        const usageTotals = yield Usage.aggregate(query);
+        res.send(`
+      <p>installation_id: ${installation_id} </p>
+      <p>API calls: ${usageTotals[0].apiCalls} </p>
+      <p>PromptTokens tokens: ${usageTotals[0].promptTokens} </p>
+      <p>CompletionTokens tokens: ${usageTotals[0].completionTokens} </p>
+      <p>Total tokens: ${usageTotals[0].promptTokens + usageTotals[0].completionTokens} </p>
+        `);
+    }
+    catch (error) {
+        console.error("Error in /usage:", error);
+        res.status(500).send("Error handling usage");
+    }
 }));
 app.get("/post-install-callback", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {

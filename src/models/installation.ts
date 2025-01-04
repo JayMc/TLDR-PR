@@ -16,6 +16,11 @@ const installationSchema = new mongoose.Schema(
       type: String,
       required: false,
     },
+    limits: {
+      apiCalls: Number,
+      promptTokens: Number,
+      completionTokens: Number,
+    },
   },
   {
     timestamps: true,

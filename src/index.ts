@@ -1,4 +1,4 @@
-import express from "express";
+import express, { query } from "express";
 import type { Express } from "express";
 import pLimit from "p-limit";
 import { Octokit } from "@octokit/rest";
@@ -6,12 +6,14 @@ import { createAppAuth } from "@octokit/auth-app";
 import bodyParser from "body-parser";
 import crypto from "crypto";
 import { Installation } from "./models/installation.js";
+import { Usage } from "./models/usage.js";
 import { connectDB } from "./db.js";
 import {
   fetchPRPatchChanges,
   summarisePatchToEnglish,
   isIgnoredFile,
 } from "./summarise-pr.js";
+import { estimator } from "./estimator.js";
 
 // ===============
 // CONFIGURATION
@@ -160,7 +162,11 @@ app.post("/webhook", async (req: Request, res: Response) => {
             networkRequestslimited(async () => {
               const patch = fileChange.patch;
               const fileName = fileChange.filename;
-              const summary = await summarisePatchToEnglish(fileName, patch);
+              const summary = await summarisePatchToEnglish(
+                fileName,
+                patch,
+                installationId
+              );
               return { ...fileChange, summary };
             })
           )
@@ -178,14 +184,14 @@ app.post("/webhook", async (req: Request, res: Response) => {
           return (
             c.user?.login === BOT_LOGIN &&
             c.user.type === "Bot" &&
-            c.body?.includes("Summary of changes:")
+            c.body?.includes("**Summary of changes:**")
           );
         });
 
         const commentBody =
           "**Summary of changes:** \n" +
           fileChangesWithSummary.reduce((acc, fileChange) => {
-            return `${acc}\n${fileChange.summary}`;
+            return `${acc}\n\r${fileChange.summary}`;
           }, "");
 
         if (existingComment) {
@@ -220,6 +226,52 @@ app.post("/webhook", async (req: Request, res: Response) => {
 
 app.get("/", async (req, res) => {
   res.send("Home page tldr-pr");
+});
+
+app.get("/estimate", async (req, res) => {
+  const { text } = req.query;
+  const tokens = estimator(text ?? "hello world");
+  console.log("tokens", tokens);
+  console.log("number of tokens", tokens.length);
+  res.send(`
+    <p>text: ${text} </p>
+    <p>number of tokens: ${tokens.length} </p>
+    `);
+});
+
+app.get("/usage", async (req, res) => {
+  const { installation_id } = req.query;
+  try {
+    const query = [
+      {
+        $match: {
+          installation_id,
+        },
+      },
+      {
+        $group: {
+          _id: "$installation_id",
+          apiCalls: { $sum: "$usage.apiCalls" },
+          promptTokens: { $sum: "$usage.promptTokensActual" },
+          completionTokens: { $sum: "$usage.completionTokensActual" },
+        },
+      },
+    ];
+    const usageTotals = await Usage.aggregate(query);
+
+    res.send(`
+      <p>installation_id: ${installation_id} </p>
+      <p>API calls: ${usageTotals[0].apiCalls} </p>
+      <p>PromptTokens tokens: ${usageTotals[0].promptTokens} </p>
+      <p>CompletionTokens tokens: ${usageTotals[0].completionTokens} </p>
+      <p>Total tokens: ${
+        usageTotals[0].promptTokens + usageTotals[0].completionTokens
+      } </p>
+        `);
+  } catch (error) {
+    console.error("Error in /usage:", error);
+    res.status(500).send("Error handling usage");
+  }
 });
 
 app.get("/post-install-callback", async (req, res) => {
