@@ -133,7 +133,7 @@ export async function summarisePatchToEnglish(
 }
 
 export function isIgnoredFile(filePath: string): boolean {
-  const filesToIgnore = ["package-lock.json", "node_modules", "dist"];
+  const filesToIgnore = ["package-lock.json", "node_modules", "dist", "test"];
   return filesToIgnore.some(
     (ignoredPath) =>
       filePath === ignoredPath || filePath.startsWith(ignoredPath + "/")

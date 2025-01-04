@@ -99,23 +99,14 @@ app.post("/webhook", (req, res) => __awaiter(void 0, void 0, void 0, function* (
                 const { owner, name } = payload.repository; // "owner" and "name" are inside "repository"
                 const octokit = yield getInstallationOctokit(installationId);
                 const fileChanges = yield fetchPRPatchChanges(octokit, owner.login, name, pull_number);
-                // console.log("fileChanges", JSON.stringify(fileChanges, null, 2));
                 console.log("body", body);
-                // console.log(
-                //   "fileChanges A",
-                //   fileChanges.map((fileChange) => fileChange.filename)
-                // );
                 const fileChangesOmmitted = fileChanges.filter((fileChange) => {
                     return !isIgnoredFile(fileChange.filename);
                 });
                 console.log("fileChangesOmmitted B", fileChangesOmmitted.map((fileChange) => fileChange.filename));
-                // call AI model
-                // for (const fileChange of fileChangesOmmitted) {
-                //   const summary = await summarisePatchToEnglish(fileChange.patch);
-                // }
-                const fileChangesLimited = fileChangesOmmitted.slice(0, 5);
+                const fileChangesLimited = fileChangesOmmitted.slice(0, 10);
                 // Limit concurrent network requests to 5
-                const networkRequestslimited = pLimit(5);
+                const networkRequestslimited = pLimit(2);
                 const fileChangesWithSummary = yield Promise.all(fileChangesLimited.map((fileChange) => networkRequestslimited(() => __awaiter(void 0, void 0, void 0, function* () {
                     const patch = fileChange.patch;
                     const fileName = fileChange.filename;
@@ -168,7 +159,10 @@ app.post("/webhook", (req, res) => __awaiter(void 0, void 0, void 0, function* (
     res.status(200).send("Event ignored");
 }));
 app.get("/", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    res.send("Home page tldr-pr");
+    res.send("Home page tldr-pr is cool");
+}));
+app.get("/stuff", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    res.send("stuff");
 }));
 app.get("/estimate", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { text } = req.query;
