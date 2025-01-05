@@ -8,7 +8,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 import OpenAI from "openai";
-import { estimator } from "./estimator.js";
+import { estimateTokens, getUsage, getLimits } from "./helpers.js";
 import { Usage } from "./models/usage.js";
 /**
  * Fetches and sums all additions/deletions for the files in a given PR.
@@ -77,7 +77,31 @@ export function summarisePatchToEnglish(fileName, patch, installationId) {
           The patch: \n
           ${patch} \n
           `;
-            console.log("prompt", prompt);
+            // console.log("prompt", prompt);
+            // console.log("installationId", installationId);
+            // check prompt will not exceed usage limit
+            // installation limit - usage consumed
+            const promptTokensEstimated = estimateTokens(prompt);
+            // console.log("promptTokensEstimated", promptTokensEstimated);
+            const pastUsage = yield getUsage(installationId);
+            // console.log("pastUsage", pastUsage);
+            const limits = yield getLimits(installationId);
+            // console.log("limits", limits);
+            if (pastUsage.apiCalls > limits.apiCalls) {
+                console.log(`apiCalls limit reached at ${pastUsage.apiCalls}`);
+                return Promise.reject(`apiCalls limit reached at ${pastUsage.apiCalls}`);
+            }
+            if (pastUsage.promptTokens > limits.promptTokens) {
+                console.log(`promptTokens limit reached at ${pastUsage.promptTokens}`);
+                return Promise.reject(`promptTokens limit reached at ${pastUsage.promptTokens}`);
+            }
+            if (promptTokensEstimated > 1000) {
+                console.log(`estimated prompt token size over limit at ${promptTokensEstimated}`);
+                return Promise.reject(`estimated prompt token size over limit at ${promptTokensEstimated}`);
+            }
+            // const remainingPromptUsage =
+            //   limits.promptTokens ?? 0 - pastUsage.promptTokens;
+            // console.log("remainingPromptUsage", remainingPromptUsage);
             const patchSummarisation = yield client.chat.completions.create({
                 messages: [
                     {
@@ -87,15 +111,17 @@ export function summarisePatchToEnglish(fileName, patch, installationId) {
                 ],
                 model: "gpt-4o-mini",
             });
-            console.log("patchSummarisation", JSON.stringify(patchSummarisation, null, 2));
+            // console.log(
+            //   "patchSummarisation",
+            //   JSON.stringify(patchSummarisation, null, 2)
+            // );
             const summ = (_c = (_b = (_a = patchSummarisation === null || patchSummarisation === void 0 ? void 0 : patchSummarisation.choices[0]) === null || _a === void 0 ? void 0 : _a.message) === null || _b === void 0 ? void 0 : _b.content) !== null && _c !== void 0 ? _c : "no summary";
             const usage = (_d = patchSummarisation.usage) !== null && _d !== void 0 ? _d : {};
-            const promptTokensEstimated = estimator(prompt);
-            const completionTokensEstimated = estimator(summ);
+            const completionTokensEstimated = estimateTokens(summ);
             const report = {
-                promptTokensEstimated: promptTokensEstimated.length,
-                completionTokensEstimated: completionTokensEstimated.length,
-                totalTokensEstimated: promptTokensEstimated.length + completionTokensEstimated.length,
+                promptTokensEstimated: promptTokensEstimated,
+                completionTokensEstimated: completionTokensEstimated,
+                totalTokensEstimated: promptTokensEstimated + completionTokensEstimated,
                 promptTokensActual: (_e = usage.prompt_tokens) !== null && _e !== void 0 ? _e : 0,
                 completionTokensActual: (_f = usage.completion_tokens) !== null && _f !== void 0 ? _f : 0,
                 totalTokensActual: (_g = usage.total_tokens) !== null && _g !== void 0 ? _g : 0,
@@ -115,7 +141,7 @@ export function summarisePatchToEnglish(fileName, patch, installationId) {
         }
         catch (error) {
             console.error("Error calling open AI", error);
-            return res.status(500).send("Internal Server Error");
+            return Promise.reject(error);
         }
     });
 }
