@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { Octokit } from "@octokit/rest";
-import { estimator } from "./estimator.js";
+import { estimateTokens, getUsage, getLimits } from "./helpers.js";
 import { Usage } from "./models/usage.js";
 
 /**
@@ -79,7 +79,44 @@ export async function summarisePatchToEnglish(
           ${patch} \n
           `;
 
-    console.log("prompt", prompt);
+    // console.log("prompt", prompt);
+    // console.log("installationId", installationId);
+
+    // check prompt will not exceed usage limit
+    // installation limit - usage consumed
+    const promptTokensEstimated = estimateTokens(prompt);
+    // console.log("promptTokensEstimated", promptTokensEstimated);
+
+    const pastUsage = await getUsage(installationId);
+    // console.log("pastUsage", pastUsage);
+
+    const limits = await getLimits(installationId);
+    // console.log("limits", limits);
+
+    if (pastUsage.apiCalls > limits.apiCalls) {
+      console.log(`apiCalls limit reached at ${pastUsage.apiCalls}`);
+      return Promise.reject(`apiCalls limit reached at ${pastUsage.apiCalls}`);
+    }
+
+    if (pastUsage.promptTokens > limits.promptTokens) {
+      console.log(`promptTokens limit reached at ${pastUsage.promptTokens}`);
+      return Promise.reject(
+        `promptTokens limit reached at ${pastUsage.promptTokens}`
+      );
+    }
+
+    if (promptTokensEstimated > 1000) {
+      console.log(
+        `estimated prompt token size over limit at ${promptTokensEstimated}`
+      );
+      return Promise.reject(
+        `estimated prompt token size over limit at ${promptTokensEstimated}`
+      );
+    }
+
+    // const remainingPromptUsage =
+    //   limits.promptTokens ?? 0 - pastUsage.promptTokens;
+    // console.log("remainingPromptUsage", remainingPromptUsage);
 
     const patchSummarisation = await client.chat.completions.create({
       messages: [
@@ -90,24 +127,23 @@ export async function summarisePatchToEnglish(
       ],
       model: "gpt-4o-mini",
     });
-    console.log(
-      "patchSummarisation",
-      JSON.stringify(patchSummarisation, null, 2)
-    );
+
+    // console.log(
+    //   "patchSummarisation",
+    //   JSON.stringify(patchSummarisation, null, 2)
+    // );
 
     const summ =
       patchSummarisation?.choices[0]?.message?.content ?? "no summary";
 
     const usage = patchSummarisation.usage ?? {};
 
-    const promptTokensEstimated = estimator(prompt);
-    const completionTokensEstimated = estimator(summ);
+    const completionTokensEstimated = estimateTokens(summ);
 
     const report = {
-      promptTokensEstimated: promptTokensEstimated.length,
-      completionTokensEstimated: completionTokensEstimated.length,
-      totalTokensEstimated:
-        promptTokensEstimated.length + completionTokensEstimated.length,
+      promptTokensEstimated: promptTokensEstimated,
+      completionTokensEstimated: completionTokensEstimated,
+      totalTokensEstimated: promptTokensEstimated + completionTokensEstimated,
       promptTokensActual: usage.prompt_tokens ?? 0,
       completionTokensActual: usage.completion_tokens ?? 0,
       totalTokensActual: usage.total_tokens ?? 0,
@@ -128,7 +164,7 @@ export async function summarisePatchToEnglish(
     return summ;
   } catch (error) {
     console.error("Error calling open AI", error);
-    return res.status(500).send("Internal Server Error");
+    return Promise.reject(error);
   }
 }
 
