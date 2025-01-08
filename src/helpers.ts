@@ -2,12 +2,19 @@ import { Usage } from "./models/usage.js";
 import { Installation } from "./models/installation.js";
 import { estimator } from "./estimator.js";
 
-export function estimateTokens(text: string) {
+export function estimateTokens(text: string): number {
   const tokens = estimator(text ?? "");
   return tokens.length ?? 0;
 }
 
-export async function getUsage(installation_id: string) {
+type Usage = {
+  _id: string;
+  apiCalls: number;
+  promptTokens: number;
+  completionTokens: number;
+};
+
+export async function getUsage(installation_id: string): Promise<Usage> {
   const query = [
     {
       $match: {
@@ -30,19 +37,21 @@ export async function getUsage(installation_id: string) {
   return usageTotals[0] ?? {};
 }
 
-export async function getLimits(installation_id: string) {
-  //   console.log("installation_id", installation_id);
+type Limits = {
+  apiCalls: number;
+  promptTokens: number;
+  completionTokens: number;
+};
 
+export async function getLimits(installation_id: string): Promise<Limits> {
   const installation = await Installation.findOne({
     installation_id,
   });
-  //   console.log("installation", installation);
 
-  return (
-    installation?.limits ?? {
-      apiCalls: 0,
-      promptTokens: 0,
-      completionTokens: 0,
-    }
+  return {
+    apiCalls: installation?.limits?.apiCalls ?? 0,
+    promptTokens: installation?.limits?.promptTokens ?? 0,
+    completionTokens: installation?.limits?.completionTokens ?? 0,
+  }
   );
 }

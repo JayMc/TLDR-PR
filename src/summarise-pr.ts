@@ -105,7 +105,7 @@ export async function summarisePatchToEnglish(
       );
     }
 
-    if (promptTokensEstimated > 1000) {
+    if (promptTokensEstimated > 5000) {
       console.log(
         `estimated prompt token size over limit at ${promptTokensEstimated}`
       );
