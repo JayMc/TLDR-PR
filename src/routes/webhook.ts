@@ -8,7 +8,6 @@ import {
   summarisePatchToEnglish,
   isIgnoredFile,
 } from "../summarise-pr.js";
-import { Installation } from "../models/installation.js";
 
 // For verifying the GitHub webhook signature:
 const GITHUB_TLDR_PR_WEBHOOK_SECRET =
@@ -138,7 +137,7 @@ router.post("/webhook", async (req: Request, res: Response) => {
           )
         );
 
-        console.log("fileChangesWithSummary", fileChangesWithSummary);
+        // console.log("fileChangesWithSummary", fileChangesWithSummary);
 
         const { data: comments } = await octokit.issues.listComments({
           owner: owner.login,
